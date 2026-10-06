@@ -5,7 +5,6 @@ import android.graphics.Canvas
 import android.graphics.DashPathEffect
 import android.graphics.LinearGradient
 import android.graphics.Paint
-import android.graphics.Path
 import android.graphics.RadialGradient
 import android.graphics.RectF
 import android.graphics.Shader
@@ -18,6 +17,7 @@ import android.view.View
 import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
+import kotlin.math.sqrt
 import kotlin.random.Random
 
 private class Particle(
@@ -137,9 +137,18 @@ class GameView(context: Context) : View(context) {
     }
 
     fun onBackPressedInGame(): Boolean = when (state) {
-        State.PLAY -> { state = State.PAUSE; true }
-        State.PAUSE -> { state = State.MENU; true }
-        State.OVER -> { state = State.MENU; true }
+        State.PLAY -> {
+            state = State.PAUSE
+            true
+        }
+        State.PAUSE -> {
+            state = State.MENU
+            true
+        }
+        State.OVER -> {
+            state = State.MENU
+            true
+        }
         State.MENU -> false
     }
 
@@ -274,8 +283,10 @@ class GameView(context: Context) : View(context) {
 
         fillPaint.color = 0xFFE07B12.toInt()
         c.drawRoundRect(
-            RectF(GameEngine.WALL - 4f, GameEngine.WALL - 4f,
-                GameEngine.W - GameEngine.WALL + 4f, GameEngine.H - GameEngine.WALL + 4f),
+            RectF(
+                GameEngine.WALL - 4f, GameEngine.WALL - 4f,
+                GameEngine.W - GameEngine.WALL + 4f, GameEngine.H - GameEngine.WALL + 4f
+            ),
             40f, 40f, fillPaint
         )
 
@@ -285,13 +296,15 @@ class GameView(context: Context) : View(context) {
             0xFFEFFBFF.toInt(), 0xFF8FD3FF.toInt(), Shader.TileMode.CLAMP
         )
         c.drawRoundRect(
-            RectF(GameEngine.WALL, GameEngine.WALL,
-                GameEngine.W - GameEngine.WALL, GameEngine.H - GameEngine.WALL),
+            RectF(
+                GameEngine.WALL, GameEngine.WALL,
+                GameEngine.W - GameEngine.WALL, GameEngine.H - GameEngine.WALL
+            ),
             34f, 34f, fillPaint
         )
         fillPaint.shader = null
 
-        // голубые «половины»
+        // цветные половины
         fillPaint.color = 0x14225599
         c.drawRoundRect(
             RectF(GameEngine.WALL, GameEngine.WALL, GameEngine.W / 2f - 3f, GameEngine.H - GameEngine.WALL),
@@ -307,12 +320,13 @@ class GameView(context: Context) : View(context) {
         linePaint.color = 0x5590B8D8
         linePaint.strokeWidth = 5f
         linePaint.pathEffect = DashPathEffect(floatArrayOf(20f, 18f), 0f)
-        c.drawLine(GameEngine.W / 2f, GameEngine.WALL + 8f, GameEngine.W / 2f, GameEngine.H - GameEngine.WALL - 8f, linePaint)
+        c.drawLine(
+            GameEngine.W / 2f, GameEngine.WALL + 8f,
+            GameEngine.W / 2f, GameEngine.H - GameEngine.WALL - 8f, linePaint
+        )
         linePaint.pathEffect = null
 
         // центральный круг
-        linePaint.color = 0x5590B8D8
-        linePaint.strokeWidth = 5f
         c.drawCircle(GameEngine.W / 2f, GameEngine.H / 2f, 96f, linePaint)
 
         // ворота
@@ -355,12 +369,13 @@ class GameView(context: Context) : View(context) {
     }
 
     private fun drawTrail(c: Canvas) {
-        val speed = kotlin.math.sqrt(engine.puckVX * engine.puckVX + engine.puckVY * engine.puckVY)
+        val speed = sqrt(engine.puckVX * engine.puckVX + engine.puckVY * engine.puckVY)
         if (speed < 90f) return
+        fillPaint.shader = null
         for (i in 0 until trailX.size - 1) {
             val k = i.toFloat() / (trailX.size - 1)
-            fillPaint.shader = null
-            fillPaint.color = (0x22FFFFFF * k.toInt()).toInt()
+            val alpha = (0x26 * k).toInt().coerceIn(0, 255)
+            fillPaint.color = (alpha shl 24) or 0x00FFFFFF
             c.drawCircle(trailX[i], trailY[i], GameEngine.PUCK_R * (0.35f + 0.6f * k), fillPaint)
         }
     }
@@ -456,16 +471,16 @@ class GameView(context: Context) : View(context) {
         if (goalLabelLife <= 0f) return
         val k = goalLabelLife.coerceIn(0f, 1f)
         val size = 120f + (1f - k) * 30f
-        textPaint.textSize = size
-        textPaint.color = (0xFF00E0A0.toInt() and 0x00FFFFFF) or ((k * 255).toInt() shl 24)
-        titleStroke("$goalLabel", GameEngine.W / 2f, GameEngine.H / 2f + 30f, size, textPaint.color, 12f)
+        val alpha = (k * 255).toInt().coerceIn(0, 255)
+        val color = (alpha shl 24) or 0x0000E0A0
+        title(c, goalLabel, GameEngine.W / 2f, GameEngine.H / 2f + 36f, size, color)
     }
 
     private fun drawParticles(c: Canvas) {
+        fillPaint.shader = null
         for (p in particles) {
             val k = (p.life / 0.8f).coerceIn(0f, 1f)
-            fillPaint.shader = null
-            fillPaint.color = (p.color and 0x00FFFFFF) or ((k * 255).toInt() shl 24)
+            fillPaint.color = (p.color and 0x00FFFFFF) or ((k * 255).toInt().coerceIn(0, 255) shl 24)
             c.drawCircle(p.x, p.y, p.size * (0.4f + k * 0.8f), fillPaint)
         }
     }
@@ -474,7 +489,7 @@ class GameView(context: Context) : View(context) {
         for (l in labels) {
             val k = (l.life / 0.9f).coerceIn(0f, 1f)
             textPaint.textSize = l.size
-            textPaint.color = (l.color and 0x00FFFFFF) or ((k * 255).toInt() shl 24)
+            textPaint.color = (l.color and 0x00FFFFFF) or ((k * 255).toInt().coerceIn(0, 255) shl 24)
             c.drawText(l.text, l.x, l.y, textPaint)
         }
     }
@@ -487,16 +502,16 @@ class GameView(context: Context) : View(context) {
         c.drawRect(0f, 0f, GameEngine.W, GameEngine.H, fillPaint)
 
         val bounce = sin(time * 2.2f) * 8f
-        title("PUCK", GameEngine.W / 2f - 118f, 128f + bounce, 92f, 0xFFFFE066.toInt())
-        title("PARTY", GameEngine.W / 2f + 132f, 128f + bounce, 92f, 0xFFFF6B8A.toInt())
+        title(c, "PUCK", GameEngine.W / 2f - 118f, 132f + bounce, 92f, 0xFFFFE066.toInt())
+        title(c, "PARTY", GameEngine.W / 2f + 132f, 132f + bounce, 92f, 0xFFFF6B8A.toInt())
 
         textPaint.textSize = 26f
         textPaint.color = 0xCCFFFFFF.toInt()
-        c.drawText("мультяшный аэрохоккей на двоих", GameEngine.W / 2f, 172f + bounce, textPaint)
+        c.drawText("мультяшный аэрохоккей на двоих", GameEngine.W / 2f, 178f + bounce, textPaint)
 
-        button(c, 300f, 210f, 700f, 286f, "ИГРАТЬ С КОМПЬЮТЕРОМ", redTeam, 32f)
-        button(c, 300f, 302f, 700f, 374f, "СЛОЖНОСТЬ: ${engine.difficulty.title.uppercase()}", 0xFFF2A03D.toInt(), 30f)
-        button(c, 300f, 390f, 700f, 462f, "BLUETOOTH-ДУЭЛЬ — СКОРО", 0xFF8A8FA0.toInt(), 26f, enabled = false)
+        button(c, 300f, 214f, 700f, 290f, "ИГРАТЬ С КОМПЬЮТЕРОМ", redTeam, 32f)
+        button(c, 300f, 306f, 700f, 378f, "СЛОЖНОСТЬ: ${engine.difficulty.title.uppercase()}", 0xFFF2A03D.toInt(), 30f)
+        button(c, 300f, 394f, 700f, 466f, "BLUETOOTH-ДУЭЛЬ — СКОРО", 0xFF8A8FA0.toInt(), 26f, enabled = false)
 
         textPaint.textSize = 24f
         textPaint.color = 0x99FFFFFF.toInt()
@@ -511,7 +526,7 @@ class GameView(context: Context) : View(context) {
         fillPaint.color = 0xAA120A22.toInt()
         c.drawRect(0f, 0f, GameEngine.W, GameEngine.H, fillPaint)
 
-        title("ПАУЗА", GameEngine.W / 2f, 210f, 74f, 0xFFFFE066.toInt())
+        title(c, "ПАУЗА", GameEngine.W / 2f, 210f, 74f, 0xFFFFE066.toInt())
         button(c, 320f, 280f, 680f, 356f, "ПРОДОЛЖИТЬ", 0xFF2ECC71.toInt(), 32f)
         button(c, 320f, 374f, 680f, 448f, "В МЕНЮ", 0xFF6C7A96.toInt(), 30f)
     }
@@ -529,7 +544,7 @@ class GameView(context: Context) : View(context) {
         c.drawRoundRect(panel, 40f, 40f, linePaint)
 
         val headColor = if (playerWon) 0xFF2ECC71.toInt() else 0xFFFF6B8A.toInt()
-        title(if (playerWon) "ПОБЕДА!" else "ПОРАЖЕНИЕ", GameEngine.W / 2f, 210f, 78f, headColor)
+        title(c, if (playerWon) "ПОБЕДА!" else "ПОРАЖЕНИЕ", GameEngine.W / 2f, 210f, 78f, headColor)
 
         textPaint.textSize = 56f
         textPaint.color = 0xFFFFFFFF.toInt()
@@ -537,7 +552,10 @@ class GameView(context: Context) : View(context) {
 
         textPaint.textSize = 24f
         textPaint.color = 0xAAFFFFFF.toInt()
-        c.drawText(if (playerWon) "Компьютер повержен" else "Компьютер оказался быстрее", GameEngine.W / 2f, 340f, textPaint)
+        c.drawText(
+            if (playerWon) "Компьютер повержен" else "Компьютер оказался быстрее",
+            GameEngine.W / 2f, 340f, textPaint
+        )
 
         button(c, 320f, 366f, 680f, 436f, "ЕЩЁ РАЗ", redTeam, 32f)
         button(c, 320f, 446f, 680f, 500f, "В МЕНЮ", 0xFF6C7A96.toInt(), 26f)
@@ -573,32 +591,17 @@ class GameView(context: Context) : View(context) {
         c.drawText(label, (l + r) / 2f, (t + b) / 2f + textSize * 0.35f, textPaint)
     }
 
-    private fun title(s: String, x: Float, y: Float, size: Float, color: Int) {
-        titleStroke(s, x, y, size, color, 12f)
-    }
+    /** Мультяшный текст: чёрная обводка + цветная заливка. */
+    private fun title(c: Canvas, s: String, x: Float, y: Float, size: Float, color: Int) {
+        strokeTextPaint.textSize = size
+        strokeTextPaint.strokeWidth = (size * 0.16f).coerceAtLeast(6f)
+        strokeTextPaint.color = ink
+        c.drawText(s, x, y, strokeTextPaint)
 
-    private fun titleStroke(s: String, x: Float, y: Float, size: Float, color: Int, strokeW: Float) {
         textPaint.textSize = size
         textPaint.color = color
-        strokeTextPaint.textSize = size
-        strokeTextPaint.strokeWidth = strokeW
-        strokeTextPaint.color = ink
-        strokeTextPaint.textAlign = Paint.Align.CENTER
-        c_drawStroke(s, x, y)
-        c_drawFill(s, x, y)
+        c.drawText(s, x, y, textPaint)
     }
-
-    private fun c_drawStroke(s: String, x: Float, y: Float) {
-        pendingStroke = Triple(s, x, y)
-    }
-
-    private fun c_drawFill(s: String, x: Float, y: Float) {
-        // отрисовка выполняется в renderFrame
-        pendingFill = Triple(s, x, y)
-    }
-
-    private var pendingStroke: Triple<String, Float, Float>? = null
-    private var pendingFill: Triple<String, Float, Float>? = null
 
     // ---------- ввод ----------
 
@@ -637,12 +640,12 @@ class GameView(context: Context) : View(context) {
 
     private fun handleMenuTap(x: Float, y: Float) {
         when {
-            hit(x, y, 300f, 210f, 700f, 286f) -> {
+            hit(x, y, 300f, 214f, 700f, 290f) -> {
                 engine.startGame()
                 state = State.PLAY
                 dragging = false
             }
-            hit(x, y, 300f, 302f, 700f, 374f) -> {
+            hit(x, y, 300f, 306f, 700f, 378f) -> {
                 engine.difficulty = when (engine.difficulty) {
                     Difficulty.EASY -> Difficulty.NORMAL
                     Difficulty.NORMAL -> Difficulty.HARD
